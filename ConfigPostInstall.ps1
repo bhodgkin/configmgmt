@@ -122,18 +122,16 @@ Configure-WinRMHttpsListener $HostName $port
 # Add firewall exception
 Add-FirewallException -port $winrmHttpsPort
 
-#################################################################################################################################
-#################################################################################################################################
 
-#################################################################################################################################
-#                                              Initalize and Format Disk                                                        #
-#################################################################################################################################
+#
+# Initalize and Format Disk
+#
 $name = "Data"
 Fix-NewDisk $name
 
-#################################################################################################################################
-#                                               Set to EST & Set Local User to never Expire                                     #
-#################################################################################################################################
+#
+#Set to EST & Set Local User to never Expire                                     
+#
 
 Set-TimeZone "Eastern Standard Time"
 Install-WindowsFeature RSAT-AD-PowerShell
@@ -141,4 +139,9 @@ Import-Module ActiveDirectory
 Start-Sleep -Seconds 5
 Set-LocalUser -Name luxadmin -PasswordNeverExpires $True
 
+#
+#Install and Configure IIS
+#
+Write-Host "-- Installing IIS --"
+DISM.EXE /Enable-Feature /Online /NoRestart /English /FeatureName:IIS-WebServerRole /FeatureName:IIS-WebServer /FeatureName:IIS-CommonHttpFeatures /FeatureName:IIS-StaticContent /FeatureName:IIS-DefaultDocument /FeatureName:IIS-DirectoryBrowsing /featureName:IIS-HttpErrors /featureName:IIS-HttpRedirect /featureName:IIS-ApplicationDevelopment /featureName:IIS-ASPNET /featureName:IIS-NetFxExtensibility /featureName:IIS-ASPNET45 /featureName:IIS-NetFxExtensibility45 /featureName:IIS-ASP /featureName:IIS-CGI /featureName:IIS-ISAPIExtensions /featureName:IIS-ISAPIFilter /featureName:IIS-ServerSideIncludes /featureName:IIS-HealthAndDiagnostics /featureName:IIS-HttpLogging /featureName:IIS-LoggingLibraries /featureName:IIS-RequestMonitor /featureName:IIS-HttpTracing /featureName:IIS-CustomLogging /featureName:IIS-ODBCLogging /featureName:IIS-Security /featureName:IIS-BasicAuthentication /featureName:IIS-WindowsAuthentication /featureName:IIS-DigestAuthentication /featureName:IIS-ClientCertificateMappingAuthentication /featureName:IIS-IISCertificateMappingAuthentication /featureName:IIS-URLAuthorization /featureName:IIS-RequestFiltering /featureName:IIS-IPSecurity /featureName:IIS-Performance /featureName:IIS-HttpCompressionStatic /featureName:IIS-HttpCompressionDynamic /featureName:IIS-WebDAV /featureName:IIS-WebServerManagementTools /featureName:IIS-ManagementScriptingTools /featureName:IIS-ManagementService /featureName:IIS-IIS6ManagementCompatibility /featureName:IIS-Metabase /featureName:IIS-WMICompatibility /featureName:IIS-LegacyScripts /featureName:IIS-FTPServer /featureName:IIS-FTPSvc /featureName:IIS-FTPExtensibility /featureName:NetFx4Extended-ASPNET45 /featureName:IIS-ApplicationInit /featureName:IIS-WebSockets /featureName:IIS-CertProvider /featureName:IIS-ManagementConsole /featureName:IIS-LegacySnapIn
 
