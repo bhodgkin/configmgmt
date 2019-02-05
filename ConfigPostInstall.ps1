@@ -127,6 +127,7 @@ Add-FirewallException -port $winrmHttpsPort
 # Initalize and Format Disk
 #
 $name = "Data"
+Write-Output "Initializing and formatting DATA disk..."
 Fix-NewDisk $name
 
 #
