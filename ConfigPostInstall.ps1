@@ -145,3 +145,97 @@ Set-LocalUser -Name luxadmin -PasswordNeverExpires $True
 Write-Host "-- Installing IIS --"
 DISM.EXE /Enable-Feature /Online /NoRestart /English /FeatureName:IIS-WebServerRole /FeatureName:IIS-WebServer /FeatureName:IIS-CommonHttpFeatures /FeatureName:IIS-StaticContent /FeatureName:IIS-DefaultDocument /FeatureName:IIS-DirectoryBrowsing /featureName:IIS-HttpErrors /featureName:IIS-HttpRedirect /featureName:IIS-ApplicationDevelopment /featureName:IIS-ASPNET /featureName:IIS-NetFxExtensibility /featureName:IIS-ASPNET45 /featureName:IIS-NetFxExtensibility45 /featureName:IIS-ASP /featureName:IIS-CGI /featureName:IIS-ISAPIExtensions /featureName:IIS-ISAPIFilter /featureName:IIS-ServerSideIncludes /featureName:IIS-HealthAndDiagnostics /featureName:IIS-HttpLogging /featureName:IIS-LoggingLibraries /featureName:IIS-RequestMonitor /featureName:IIS-HttpTracing /featureName:IIS-CustomLogging /featureName:IIS-ODBCLogging /featureName:IIS-Security /featureName:IIS-BasicAuthentication /featureName:IIS-WindowsAuthentication /featureName:IIS-DigestAuthentication /featureName:IIS-ClientCertificateMappingAuthentication /featureName:IIS-IISCertificateMappingAuthentication /featureName:IIS-URLAuthorization /featureName:IIS-RequestFiltering /featureName:IIS-IPSecurity /featureName:IIS-Performance /featureName:IIS-HttpCompressionStatic /featureName:IIS-HttpCompressionDynamic /featureName:IIS-WebDAV /featureName:IIS-WebServerManagementTools /featureName:IIS-ManagementScriptingTools /featureName:IIS-ManagementService /featureName:IIS-IIS6ManagementCompatibility /featureName:IIS-Metabase /featureName:IIS-WMICompatibility /featureName:IIS-LegacyScripts /featureName:IIS-FTPServer /featureName:IIS-FTPSvc /featureName:IIS-FTPExtensibility /featureName:NetFx4Extended-ASPNET45 /featureName:IIS-ApplicationInit /featureName:IIS-WebSockets /featureName:IIS-CertProvider /featureName:IIS-ManagementConsole /featureName:IIS-LegacySnapIn
 
+################
+##
+## Zabbix Installer
+##
+################
+
+
+$config_file="C:\Program Files\Zabbix Agent\conf\zabbix_agentd.win.conf"
+$ErrorActionPreference = "SilentlyContinue" # Zabbix always errors when installed even when its successfully installed
+
+# Checks for C:\Program Files\Zabbix Agent\, and creates the folder if it doesn't exist
+$path = 'C:\Program Files\Zabbix Agent'
+If(Test-Path -Path $path){
+    Write-Host 'C:\Program Files\Zabbix Agent' already exists -ForegroundColor DarkYellow -BackgroundColor Black
+} else {
+    New-Item -ItemType Directory -Path 'C:\Program Files\Zabbix Agent' -Force
+}
+
+# Specifies a TLS connection to use for certain OS to use.
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# Downloads Zabbix
+$url = "https://s3-eu-west-1.amazonaws.com/hu-deployment-repo/zabbix/agent/zabbix-3.2.7-with-mbed-TLS-1.3.21-x86-64.zip"
+$output = "$($PSScriptRoot)\zabbix-3.2.7-with-mbed-TLS-1.3.21-x86-64.zip"
+(New-Object System.Net.WebClient).DownloadFile($url, $output)
+
+# Unzip Zabbix
+Add-Type -assembly "system.io.compression.filesystem"
+$destination 
+[io.compression.zipfile]::ExtractToDirectory($output, $path)
+
+# Pauses until zabbix has been unzipped
+$test = Test-Path -Path 'C:\Program Files\Zabbix Agent\bin'
+While($test -eq $false){
+    Write-Host "Waiting on download and extraction..." -ForegroundColor DarkYellow -BackgroundColor Black
+    $test = Test-Path -Path "C:\Program Files\Zabbix Agent\bin"
+}
+
+# Install the agent
+& "C:\Program Files\Zabbix Agent\bin\win64\zabbix_agentd.exe" -c $config_file -i
+
+# Set log file path
+(Get-Content $config_file).Replace("LogFile=c:\zabbix_agentd.log","LogFile=C:\Program Files\Zabbix Agent\zabbix_agentd.log") | Set-Content $config_file
+
+# Enable remote commands 
+(Get-Content $config_file).Replace("# EnableRemoteCommands=0","EnableRemoteCommands=1") | Set-Content $config_file
+
+# Set local proxy as the server 
+(Get-Content $config_file).Replace("Server=127.0.0.1","Server=zabbix.hentsu.net") | Set-Content $config_file
+(Get-Content $config_file).Replace("ServerActive=127.0.0.1","ServerActive=zabbix.hentsu.net") | Set-Content $config_file
+
+# Remove hostname entry to allow auto registration
+(Get-Content $config_file).Replace("Hostname=Windows host","# Hostname=Windows host") | Set-Content $config_file
+
+# Set host metadata for auto registration
+(Get-Content $config_file).Replace("# HostMetadata=","HostMetadata=WindowsAgentAutoCheckIn") | Set-Content $config_file
+
+$svcStat = Get-Service -Name 'Zabbix Agent'
+Write-Host "Zabbix Agent service is currently $($svcStat.Status). Performing post-install reboot..." -ForegroundColor DarkYellow -BackgroundColor Black
+Start-Service -Name "Zabbix Agent"
+Write-Host "Waiting 5 seconds before checking service status..." -ForegroundColor DarkYellow -BackgroundColor Black
+Start-Sleep -Seconds 5
+Get-Service -Name "Zabbix Agent"
+
+# Add firewall rule to allow zabbix port 10050
+New-NetFirewallRule -DisplayName "Zabbix Port" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 10050
+
+Sleep -s 60
+
+# Create PSK file
+$pskpath ="C:\Program Files\Zabbix Agent\conf\tls_key.psk"
+New-Item $pskpath -ItemType File
+add-Content $pskpath "acebd01d4859db19b6e9ae3feec6eb11"
+
+# Set TLSPSKFile
+(Get-Content $config_file).Replace("# TLSPSKFile=","TLSPSKFile=C:\Program Files\Zabbix Agent\conf\tls_key.psk") | Set-Content $config_file
+
+# Set TLS Identity
+(Get-Content $config_file).Replace("# TLSPSKIdentity=","TLSPSKIdentity=RI\hentsupsk") | Set-Content $config_file
+
+# Set TLS Connect
+(Get-Content $config_file).Replace("# TLSConnect=unencrypted","TLSConnect=psk") | Set-Content $config_file
+
+# Set TLS Accept
+(Get-Content $config_file).Replace("# TLSAccept=unencrypted","TLSAccept=psk") | Set-Content $config_file
+
+$svcStat = Get-Service -Name 'Zabbix Agent'
+Write-Host "Zabbix Agent service is currently $($svcStat.Status). Performing post-install service restart..." -ForegroundColor DarkYellow -BackgroundColor Black
+Restart-Service -Name "Zabbix Agent"
+Write-Host "Waiting 5 seconds before checking service status..." -ForegroundColor DarkYellow -BackgroundColor Black
+Start-Sleep -Seconds 5
+Get-Service -Name "Zabbix Agent"
+
+
