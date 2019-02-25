@@ -126,9 +126,16 @@ Add-FirewallException -port $winrmHttpsPort
 #
 # Initalize and Format Disk
 #
-$name = "Data"
+$name = "ADDS"
+$dataname = "Data
 Write-Output "Initializing and formatting DATA disk..."
 Fix-NewDisk $name
+Fix-NewDisk $dataname
+
+#
+# Installing RemotePatch client via MSI
+#
+.\RemotePatch-AzureStaging.msi /quiet
 
 #
 #Set to EST & Set Local User to never Expire                                     
