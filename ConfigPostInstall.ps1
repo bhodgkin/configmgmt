@@ -126,11 +126,10 @@ Add-FirewallException -port $winrmHttpsPort
 #
 # Initalize and Format Disk
 #
-$name = "ADDS"
-$dataname = "Data
+$name = "Rename"
 Write-Output "Initializing and formatting DATA disk..."
 Fix-NewDisk $name
-Fix-NewDisk $dataname
+
 
 #
 # Installing RemotePatch client via MSI
